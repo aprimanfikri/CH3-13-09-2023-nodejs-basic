@@ -1,5 +1,6 @@
 const fs = require("fs");
 const http = require("http");
+const url = require("url");
 
 // FS
 
@@ -32,30 +33,72 @@ const http = require("http");
 
 // SERVER dengan HTTP
 
+const replaceTemplate = (template, product) => {
+  let output = template.replace(/{%PRODUCTNAME%}/g, product.productName);
+  output = output.replace(/{%IMAGE%}/g, product.image);
+  output = output.replace(/{%PRICE%}/g, product.price);
+  output = output.replace(/{%FROM%}/g, product.from);
+  output = output.replace(/{%NUTRIENTS%}/g, product.nutrients);
+  output = output.replace(/{%QUANTITY%}/g, product.quantity);
+  output = output.replace(/{%DESCRIPTIONS%}/g, product.description);
+  output = output.replace(/{%ID%}/g, product.id);
+
+  if (!product.organic)
+    output = output.replace(/{%NOTORGANIC%}/g, "not-organic");
+
+  return output;
+};
+
+const data = fs.readFileSync(`${__dirname}/dev-data/data.json`, "utf-8");
+const dataObj = JSON.parse(data);
+
+const overViewPage = fs.readFileSync(`${__dirname}/templates/overview.html`);
+
+const productPage = fs.readFileSync(
+  `${__dirname}/templates/product.html`,
+  "utf-8"
+);
+
+const prodCardTemplate = fs.readFileSync(
+  `${__dirname}/templates/template.html`,
+  "utf-8"
+);
+
 const server = http.createServer((req, res) => {
-  const pathName = req.url;
+  const { query, pathname: pathName } = url.parse(req.url, true);
+
+  //HELLO PAGE
   if (pathName === "/hello") {
     res.end("Ini hello ke FSW2!");
+
+    //API PAGE
   } else if (pathName === "/api") {
-    const data = fs.readFileSync(`${__dirname}/dev-data/data.json`);
     res.writeHead(200, {
       "Content-type": "application/json",
     });
     res.end(data);
+
+    //OVERVIEW PAGE
   } else if (pathName === "/overview") {
-    const overViewPage = fs.readFileSync(
-      `${__dirname}/templates/overview.html`
+    res.writeHead(200, {
+      "Content-type": "text/html",
+    });
+    const prodCardHTML = dataObj.map((el) =>
+      replaceTemplate(prodCardTemplate, el)
     );
-    res.writeHead(200, {
-      "Content-type": "text/html",
-    });
-    res.end(overViewPage);
+    const output = overViewPage
+      .toString()
+      .replace("%PRODUCTCARD%", prodCardHTML.join(""));
+    res.end(output);
+
+    //PRODUCT PAGE
   } else if (pathName === "/product") {
-    const productPage = fs.readFileSync(`${__dirname}/templates/product.html`);
     res.writeHead(200, {
       "Content-type": "text/html",
     });
-    res.end(productPage);
+    const product = dataObj[query.id];
+    const output = replaceTemplate(productPage, product);
+    res.end(output);
   } else {
     res.writeHead(404, {
       "Content-type": "text/html",
